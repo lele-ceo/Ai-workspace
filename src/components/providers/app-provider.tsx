@@ -7,6 +7,7 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
   type ReactNode,
 } from "react";
 import {
@@ -23,7 +24,79 @@ import type { Attachment } from "@/types/attachment.types";
 import { AGENTS, DEFAULT_AGENT_ID, getAgent } from "@/lib/mock/agents";
 import { DEFAULT_MODEL_ID, MODELS, getModel, recommendedSubModel } from "@/lib/mock/models";
 import { mockProvider } from "@/lib/ai/mock.provider";
+import { anthropicProvider, BudgetExceededError } from "@/lib/ai/anthropic.provider";
+import {
+  DEFAULT_MODEL_ROUTING_PREFERENCES,
+  recommendModel,
+  type ModelRecommendation,
+  type ModelRoutingPreferences,
+  type RoutingPriority,
+} from "@/lib/model-routing";
+import {
+  canChargeMockTurn,
+  DEFAULT_MOCK_SPENDING,
+  estimateMockTurnCost,
+  getMockSpendStatus,
+  type MockSpending,
+  type MockSpendStatus,
+} from "@/lib/mock-spending";
 import { uid } from "@/lib/utils";
+
+// Switch to the real Anthropic provider (via AgentGuard) by setting
+// NEXT_PUBLIC_USE_REAL_AI=true in your .env.local. Without it the mock is used.
+const USE_REAL_AI = process.env.NEXT_PUBLIC_USE_REAL_AI === "true";
+const activeProvider = USE_REAL_AI ? anthropicProvider : mockProvider;
+const MODEL_ROUTING_STORAGE_KEY = "ai-assistant:model-routing";
+const MOCK_SPENDING_STORAGE_KEY = "ai-assistant:mock-spending";
+
+function readModelRoutingPreferences(): ModelRoutingPreferences {
+  if (typeof window === "undefined") return DEFAULT_MODEL_ROUTING_PREFERENCES;
+  try {
+    const saved = window.localStorage.getItem(MODEL_ROUTING_STORAGE_KEY);
+    if (!saved) return DEFAULT_MODEL_ROUTING_PREFERENCES;
+    const parsed = JSON.parse(saved) as Partial<ModelRoutingPreferences>;
+    if (
+      typeof parsed.smartRouting === "boolean" &&
+      (parsed.priority === "speed" || parsed.priority === "balanced" || parsed.priority === "quality" || parsed.priority === "cost")
+    ) {
+      return { smartRouting: parsed.smartRouting, priority: parsed.priority };
+    }
+  } catch {
+    // Local preferences are optional; malformed browser storage must not
+    // prevent the workspace from rendering.
+  }
+  return DEFAULT_MODEL_ROUTING_PREFERENCES;
+}
+
+function persistModelRoutingPreferences(preferences: ModelRoutingPreferences) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(MODEL_ROUTING_STORAGE_KEY, JSON.stringify(preferences));
+  }
+}
+
+function readMockSpending(): MockSpending {
+  if (typeof window === "undefined") return DEFAULT_MOCK_SPENDING;
+  try {
+    const saved = window.localStorage.getItem(MOCK_SPENDING_STORAGE_KEY);
+    if (!saved) return DEFAULT_MOCK_SPENDING;
+    const parsed = JSON.parse(saved) as Partial<MockSpending>;
+    if (
+      typeof parsed.monthlyCapUsd === "number" && parsed.monthlyCapUsd > 0 &&
+      typeof parsed.spentUsd === "number" && parsed.spentUsd >= 0
+    ) {
+      return { monthlyCapUsd: parsed.monthlyCapUsd, spentUsd: parsed.spentUsd };
+    }
+  } catch {
+    // Mock spending is optional local state; invalid storage falls back safely.
+  }
+  return DEFAULT_MOCK_SPENDING;
+}
+
+function persistMockSpending(spending: MockSpending) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(MOCK_SPENDING_STORAGE_KEY, JSON.stringify(spending));
+  }
+}
 
 export interface AppContextValue {
   // data
@@ -44,6 +117,13 @@ export interface AppContextValue {
   composerAttachments: Attachment[];
   searchQuery: string;
   isStreaming: boolean;
+  /** True after AgentGuard refuses a request because its budget is exhausted. */
+  budgetBlocked: boolean;
+  modelRoutingPreferences: ModelRoutingPreferences;
+  modelRecommendation: ModelRecommendation;
+  mockSpending: MockSpending;
+  mockSpendStatus: MockSpendStatus;
+  isLiveMode: boolean;
   // ui actions
   setSidebarOpen: (open: boolean) => void;
   setAgentDrawerOpen: (open: boolean) => void;
@@ -52,6 +132,10 @@ export interface AppContextValue {
   addAttachments: (files: FileList | File[]) => void;
   removeAttachment: (id: string) => void;
   setSearchQuery: (value: string) => void;
+  setSmartRouting: (enabled: boolean) => void;
+  setRoutingPriority: (priority: RoutingPriority) => void;
+  setMockMonthlyCap: (capUsd: number) => void;
+  resetMockSpending: () => void;
   // conversation actions
   selectThread: (id: string) => void;
   createThread: () => void;
@@ -78,17 +162,57 @@ export function AppProvider({ children }: { children: ReactNode }) {
     stateRef.current = state;
   }, [state]);
   const abortRef = useRef<AbortController | null>(null);
+  const [liveBudgetBlocked, setLiveBudgetBlocked] = useState(false);
+  const [modelRoutingPreferences, setModelRoutingPreferences] = useState<ModelRoutingPreferences>(
+    readModelRoutingPreferences,
+  );
+  const [mockSpending, setMockSpending] = useState<MockSpending>(readMockSpending);
 
   const activeThread = selectActiveThread(state);
   const activeModel = getModel(activeThread.modelId);
   const activeAgent = getAgent(activeThread.agentId);
   const activeSubModel = activeThread.subModel ?? recommendedSubModel(activeThread.modelId);
   const isStreaming = state.streamingMessageId !== null;
+  const mockSpendStatus = getMockSpendStatus(mockSpending);
+  const budgetBlocked = liveBudgetBlocked || (!USE_REAL_AI && mockSpendStatus.blocked);
+  const modelRecommendation = useMemo(
+    () => recommendModel(state.composerValue, MODELS, modelRoutingPreferences),
+    [state.composerValue, modelRoutingPreferences],
+  );
 
   const setSidebarOpen = useCallback((open: boolean) => dispatch({ type: "SET_SIDEBAR", open }), []);
   const setAgentDrawerOpen = useCallback((open: boolean) => dispatch({ type: "SET_AGENT_DRAWER", open }), []);
   const setComposerValue = useCallback((value: string) => dispatch({ type: "SET_COMPOSER_VALUE", value }), []);
   const setSearchQuery = useCallback((value: string) => dispatch({ type: "SET_SEARCH", value }), []);
+  const setSmartRouting = useCallback((enabled: boolean) => {
+    setModelRoutingPreferences((current) => {
+      const next = { ...current, smartRouting: enabled };
+      persistModelRoutingPreferences(next);
+      return next;
+    });
+  }, []);
+  const setRoutingPriority = useCallback((priority: RoutingPriority) => {
+    setModelRoutingPreferences((current) => {
+      const next = { ...current, priority };
+      persistModelRoutingPreferences(next);
+      return next;
+    });
+  }, []);
+  const setMockMonthlyCap = useCallback((capUsd: number) => {
+    if (!Number.isFinite(capUsd) || capUsd <= 0) return;
+    setMockSpending((current) => {
+      const next = { ...current, monthlyCapUsd: Math.round(capUsd * 100) / 100 };
+      persistMockSpending(next);
+      return next;
+    });
+  }, []);
+  const resetMockSpending = useCallback(() => {
+    setMockSpending((current) => {
+      const next = { ...current, spentUsd: 0 };
+      persistMockSpending(next);
+      return next;
+    });
+  }, []);
   const selectThread = useCallback((id: string) => dispatch({ type: "SELECT_THREAD", id }), []);
   const pinThread = useCallback((id: string) => dispatch({ type: "PIN_THREAD", id }), []);
 
@@ -173,7 +297,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     void (async () => {
       try {
-        const stream = mockProvider.sendMessage(history, {
+        const stream = activeProvider.sendMessage(history, {
           modelId: thread.modelId,
           agentId: thread.agentId,
           signal: controller.signal,
@@ -192,6 +316,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
             dispatch({ type: "APPEND_DELTA", threadId, messageId: assistantId, content: chunk.content });
           }
         }
+      } catch (err) {
+        // Budget exceeded: surface a human-readable message in the chat instead
+        // of crashing. All other errors are re-thrown so they surface in dev tools.
+        if (err instanceof BudgetExceededError) {
+          const spent = err.spent_usd != null ? ` (spent: $${err.spent_usd.toFixed(2)})` : "";
+          // This is a UX lock only. AgentGuard remains the authoritative,
+          // server-side hard gate, so a refresh or a crafted request cannot
+          // bypass the monthly budget.
+          setLiveBudgetBlocked(true);
+          dispatch({
+            type: "APPEND_DELTA",
+            threadId,
+            messageId: assistantId,
+            content: `⚠️ **Monthly AI budget reached${spent}.** Please contact the operator or wait until next month.`,
+          });
+        } else if ((err as { name?: string }).name !== "AbortError") {
+          dispatch({
+            type: "APPEND_DELTA",
+            threadId,
+            messageId: assistantId,
+            content: "⚠️ **Something went wrong.** Please try again.",
+          });
+          console.error("[AnthropicProvider]", err);
+        }
       } finally {
         dispatch({ type: "END_STREAM", threadId, messageId: assistantId });
         if (abortRef.current === controller) abortRef.current = null;
@@ -203,9 +351,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const trimmed = text.trim();
     const attachments = stateRef.current.composerAttachments;
     // Send when there is text OR at least one attached file (ChatGPT-style).
-    if ((!trimmed && attachments.length === 0) || stateRef.current.streamingMessageId) return;
+    if (
+      (!trimmed && attachments.length === 0) ||
+      stateRef.current.streamingMessageId ||
+      budgetBlocked
+    ) return;
 
     const thread = selectActiveThread(stateRef.current);
+    if (!USE_REAL_AI) {
+      const estimatedCost = estimateMockTurnCost(getModel(thread.modelId));
+      if (!canChargeMockTurn(mockSpending, estimatedCost)) return;
+      setMockSpending((current) => {
+        const next = { ...current, spentUsd: Number((current.spentUsd + estimatedCost).toFixed(2)) };
+        persistMockSpending(next);
+        return next;
+      });
+    }
     const userMessage: Message = {
       id: uid("m"),
       role: "user",
@@ -218,7 +379,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_COMPOSER_VALUE", value: "" });
     dispatch({ type: "CLEAR_ATTACHMENTS" });
     streamTurn(thread, [...thread.messages, userMessage]);
-  }, [streamTurn]);
+  }, [budgetBlocked, mockSpending, streamTurn]);
 
   // Edit a previously-sent user message in place, then regenerate a reply. The
   // new answer is appended (the app never branches history — see docs/handoff.md).
@@ -252,12 +413,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       composerAttachments: state.composerAttachments,
       searchQuery: state.searchQuery,
       isStreaming,
+      budgetBlocked,
+      modelRoutingPreferences,
+      modelRecommendation,
+      mockSpending,
+      mockSpendStatus,
+      isLiveMode: USE_REAL_AI,
       setSidebarOpen,
       setAgentDrawerOpen,
       setComposerValue,
       addAttachments,
       removeAttachment,
       setSearchQuery,
+      setSmartRouting,
+      setRoutingPriority,
+      setMockMonthlyCap,
+      resetMockSpending,
       selectThread,
       createThread,
       pinThread,
@@ -281,12 +452,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       activeAgent,
       activeSubModel,
       isStreaming,
+      budgetBlocked,
+      modelRoutingPreferences,
+      modelRecommendation,
+      mockSpending,
+      mockSpendStatus,
       setSidebarOpen,
       setAgentDrawerOpen,
       setComposerValue,
       addAttachments,
       removeAttachment,
       setSearchQuery,
+      setSmartRouting,
+      setRoutingPriority,
+      setMockMonthlyCap,
+      resetMockSpending,
       selectThread,
       createThread,
       pinThread,

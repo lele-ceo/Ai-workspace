@@ -60,24 +60,6 @@ export const MODELS: Model[] = [
       "radial-gradient(120% 85% at 50% -20%, rgba(217,119,87,0.62) 0%, rgba(217,119,87,0.18) 40%, #0a0a0a 72%)",
   },
   {
-    id: "grok",
-    name: "Grok",
-    provider: "xAI",
-    description: "Sarcastic, real-time",
-    placeholder: "What do you want to know?",
-    capabilities: ["vision", "reasoning", "fast"],
-    contextWindow: 128_000,
-    priceMtok: 5,
-    availability: "available",
-    accentColor: "#e5e7eb",
-    subModels: [
-      { name: "Grok Fast", bestFor: "Real-time answers", recommended: true },
-      { name: "Grok Heavy", bestFor: "Hard problems" },
-    ],
-    background:
-      "radial-gradient(120% 85% at 50% -20%, rgba(160,168,180,0.42) 0%, rgba(120,128,140,0.12) 40%, #050505 72%)",
-  },
-  {
     id: "gemini",
     name: "Gemini",
     provider: "Google",

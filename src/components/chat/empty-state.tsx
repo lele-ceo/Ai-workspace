@@ -10,7 +10,6 @@ const HEADLINE: Record<string, string> = {
   base: "How can I help you today?",
   chatgpt: "What can I help with?",
   claude: "How can I help you today?",
-  grok: "What do you want to know?",
   gemini: "Ask Gemini anything",
   perplexity: "What do you want to search?",
 };

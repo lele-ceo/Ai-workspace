@@ -4,11 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:real": "NEXT_PUBLIC_USE_REAL_AI=true next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "agentguard:health": "curl -sf http://localhost:3939/health && echo '✓ AgentGuard healthy'",
+    "agentguard:register": "curl -s -X POST http://localhost:3939/api/activate -H 'Content-Type: application/json' -d '{\"provider\":\"anthropic\",\"api_key\":\"'\"$ANTHROPIC_API_KEY\"'\",\"monthly_budget_usd\":50}'"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.4",
+    "@supabase/supabase-js": "^2.110.8",
     "framer-motion": "^12.42.2",
     "lucide-react": "^1.23.0",
     "next": "16.2.9",

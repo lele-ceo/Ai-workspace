@@ -1,68 +1,75 @@
 # Agent Workspace
 
-A single-page, enterprise-style AI agent console: threads with pinned/recent
-history and search, live-streaming reasoning traces, simulated tool
-execution (Web Search, Code Interpreter, Document Reader), model and agent
-switching, an inspector panel with per-turn metrics, and pause/resume/stop/
-retry controls on every in-flight response. Everything is simulated
-client-side — there is no backend, and no fixed canned Q&A. Type anything;
-the response is synthesized live from what you actually typed.
+A streaming AI assistant console built with Next.js. It supports a local mock
+mode for UI development and a production Anthropic route protected by
+AgentGuard (AHRPLY), which is the mandatory server-side budget gate.
 
-## Stack
-
-- Next.js 16 (App Router) + React 19 + TypeScript
-- Tailwind CSS 4
-- Framer Motion (animation)
-- Lucide React (icons)
-- react-markdown + remark-gfm (message rendering: tables, code blocks, links)
-- Bun (runtime, package manager, bundler)
-
-## Run it
+## Run locally
 
 ```bash
 bun install
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Pick an agent and
-model from the composer, type any request, and watch it think, run tools,
-and stream an answer. Try messages containing words like "search", "bug", or
-"file" to trigger different simulated tool calls.
+Open [http://localhost:3000](http://localhost:3000). By default the UI uses
+the mock provider. For real requests, copy `.env.example` to `.env.local`,
+set all AgentGuard credentials, then set `NEXT_PUBLIC_USE_REAL_AI=true`.
+
+## Production setup
+
+The live backend intentionally has no direct-Anthropic fallback: every
+request must include AgentGuard credentials and is sent to `AGENTGUARD_URL`.
+AgentGuard must be reachable from the deployed application and configured
+with the monthly budget you want to enforce.
+
+Set these encrypted environment variables in the host (Vercel, Railway,
+Fly.io, etc.); never expose any except `NEXT_PUBLIC_USE_REAL_AI` to the
+browser:
+
+```text
+ANTHROPIC_API_KEY
+AGENTGUARD_URL=https://your-agentguard.example.com
+AGENTGUARD_AGENT_ID
+AGENTGUARD_PROXY_KEY
+NEXT_PUBLIC_USE_REAL_AI=true
+```
+
+Only Claude is wired to the live backend today. The other provider cards are
+available in mock mode; live calls using them are rejected explicitly rather
+than silently routed to another vendor.
+
+Check deployment readiness with `GET /api/health`. It returns `200` only when
+the server has every AgentGuard credential, and `503` otherwise. It never
+returns secret values.
+
+### Docker
+
+The project builds a standalone Next.js image:
+
+```bash
+docker build -t agent-workspace .
+docker run --env-file .env.local -p 3000:3000 agent-workspace
+```
+
+The container needs network access to the independently deployed AgentGuard
+service. A local `localhost` proxy is not reachable from this container.
 
 ## Structure
 
-```
-src/app/                          the single route
-src/components/workspace/         Sidebar, Topbar, StatusBar, Inspector, and
-                                   the top-level AgentWorkspace that wires
-                                   everything together
-src/components/thread/            message list, message bubble, markdown
-                                   renderer, reasoning block, tool card
-src/components/composer/          the message composer (auto-resize,
-                                   attachments, selectors, send/stop)
-src/components/selectors/         Model Selector, Agent Selector dropdowns
-src/lib/ecosystem/types.ts        Agent, Model, Thread, Message, ToolCall,
-                                   ReasoningStep — the whole data model
-src/lib/ecosystem/data.ts         seed agents, models, starter threads
-src/lib/ecosystem/mock-responder.ts   synthesizes a reasoning/tool/output
-                                       turn from real user input
-src/lib/ecosystem/use-agent-simulation.ts   the state machine driving
-                                             thinking → tools → streaming
-src/lib/use-dropdown.ts           shared open/close/outside-click hook
-docs/                             operational docs — see below
+```text
+src/app/                          UI route plus streaming API and health route
+src/components/                   chat layout, composer and providers
+src/lib/ai/                       provider adapters, input contract and tests
+src/lib/mock/                     seed data and local mock response engine
+src/store/                        client conversation state
 ```
 
-## Scope note
-
-This covers the "extended core" of a larger enterprise-agent-UI brief: one
-workspace layout, one chat thread with reasoning/tools/citations, one
-composer, and the model/agent selectors. Deliberately out of scope for now:
-workflow builder, memory explorer, analytics/dashboard pages, command
-palette, artifact viewers (canvas/spreadsheet/diff), settings, and
-approval/task-queue pages. See `docs/handoff.md` for the reasoning.
+Files in the composer remain browser-local previews; they are not uploaded or
+sent to Anthropic. Add a dedicated storage/ingestion path before presenting
+attachments as model-readable production input.
 
 ## Documentation
 
-- [AGENTS.md](AGENTS.md) — development rules and mandatory workflow (read this first)
-- [docs/session.md](docs/session.md) — operational changelog
-- [docs/handoff.md](docs/handoff.md) — current project state and context
+- [AGENTS.md](AGENTS.md) — development rules
+- [.sinapsi/session.md](.sinapsi/session.md) — operational changelog
+- [.sinapsi/handoff.md](.sinapsi/handoff.md) — current project state

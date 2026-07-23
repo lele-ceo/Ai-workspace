@@ -12,12 +12,13 @@ export function useComposer() {
     sendMessage,
     stopStreaming,
     isStreaming,
+    budgetBlocked,
     activeModel,
   } = useApp();
 
   // Sendable with text OR at least one attached file.
   const canSend =
-    (composerValue.trim().length > 0 || composerAttachments.length > 0) && !isStreaming;
+    (composerValue.trim().length > 0 || composerAttachments.length > 0) && !isStreaming && !budgetBlocked;
 
   return {
     value: composerValue,
@@ -28,6 +29,7 @@ export function useComposer() {
     placeholder: activeModel.placeholder,
     canSend,
     isStreaming,
+    budgetBlocked,
     send: () => sendMessage(composerValue),
     stop: stopStreaming,
   };

@@ -31,6 +31,7 @@ export function Composer() {
     placeholder,
     canSend,
     isStreaming,
+    budgetBlocked,
     send,
     stop,
   } = useComposer();
@@ -105,6 +106,7 @@ export function Composer() {
             rows={1}
             placeholder={placeholder}
             aria-label="Message"
+            disabled={budgetBlocked}
             className="w-full resize-none bg-transparent text-[14px] leading-[22px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none scrollbar-hidden"
           />
 
@@ -119,6 +121,11 @@ export function Composer() {
           )}
           {speech.error && !speech.recording && (
             <div className="mt-1 text-[12px] text-red-400">{speech.error}</div>
+          )}
+          {budgetBlocked && (
+            <p role="alert" className="mt-1 text-[12px] text-amber-300">
+              Monthly AI budget reached. New requests are blocked until the operator resets it.
+            </p>
           )}
           {speech.clipUrl && !speech.recording && (
             <div className="mt-2 flex items-center gap-2">
@@ -191,10 +198,11 @@ export function Composer() {
               <button
                 type="button"
                 onClick={toggleToolMenu}
+                disabled={budgetBlocked}
                 aria-haspopup="menu"
                 aria-expanded={toolMenuOpen}
                 aria-label="Strumenti"
-                className="rounded-lg p-1.5 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                className={cn("rounded-lg p-1.5 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]", budgetBlocked && "cursor-not-allowed opacity-40 hover:bg-transparent")}
               >
                 <Plus className={cn("size-4 transition-transform", toolMenuOpen && "rotate-45")} />
               </button>
@@ -216,7 +224,7 @@ export function Composer() {
               <button
                 type="button"
                 onClick={speech.toggle}
-                disabled={!speech.supported}
+                disabled={!speech.supported || budgetBlocked}
                 aria-label={speech.recording ? "Stop voice input" : "Start voice input"}
                 aria-pressed={speech.recording}
                 title={speech.supported ? undefined : "Voice input isn't supported in this browser"}
@@ -230,7 +238,7 @@ export function Composer() {
                   speech.recording
                     ? "bg-[var(--accent)] text-white"
                     : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
-                  !speech.supported && "cursor-not-allowed opacity-40 hover:bg-transparent hover:text-[var(--text-secondary)]",
+                  (!speech.supported || budgetBlocked) && "cursor-not-allowed opacity-40 hover:bg-transparent hover:text-[var(--text-secondary)]",
                 )}
               >
                 <Mic className="size-4" />

@@ -6,7 +6,6 @@ export type ProviderTab =
   | "base"
   | "chatgpt"
   | "claude"
-  | "grok"
   | "gemini"
   | "perplexity";
 

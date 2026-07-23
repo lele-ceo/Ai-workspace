@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { PanelLeft, Users } from "lucide-react";
+import { AlertTriangle, PanelLeft, RotateCcw, Users } from "lucide-react";
 import { useApp } from "@/hooks/use-app";
 import { Sidebar } from "./sidebar";
 import { TopProviderBar } from "./top-provider-bar";
@@ -14,7 +14,17 @@ import { ModelSelector } from "@/components/composer/model-selector";
 // zone reveals the provider bar, then the scrollable conversation and the
 // pinned composer. No right panel — everything is on-demand (per spec).
 export function ChatLayout() {
-  const { activeThread, activeAgent, sidebarOpen, setSidebarOpen, setAgentDrawerOpen } = useApp();
+  const {
+    activeThread,
+    activeAgent,
+    sidebarOpen,
+    setSidebarOpen,
+    setAgentDrawerOpen,
+    isLiveMode,
+    mockSpending,
+    mockSpendStatus,
+    resetMockSpending,
+  } = useApp();
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -94,6 +104,27 @@ export function ChatLayout() {
             <ModelSelector placement="down" />
           </div>
         </header>
+
+        {!isLiveMode && (mockSpendStatus.warning || mockSpendStatus.blocked) && (
+          <div
+            role="status"
+            className="flex items-center gap-2 border-b border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[12px] text-amber-100 md:px-4"
+          >
+            <AlertTriangle className="size-4 shrink-0 text-amber-300" aria-hidden />
+            <span>
+              {mockSpendStatus.blocked
+                ? `Mock monthly limit reached ($${mockSpending.spentUsd.toFixed(2)} / $${mockSpending.monthlyCapUsd.toFixed(2)}). New mock requests are blocked.`
+                : `Mock spending warning: ${mockSpendStatus.percentUsed}% of the $${mockSpending.monthlyCapUsd.toFixed(2)} monthly cap is used.`}
+            </span>
+            <button
+              type="button"
+              onClick={resetMockSpending}
+              className="ml-auto flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-amber-100 hover:bg-amber-300/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+            >
+              <RotateCcw className="size-3" /> Reset
+            </button>
+          </div>
+        )}
 
         <Conversation />
         <Composer />
