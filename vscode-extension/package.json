@@ -1,0 +1,159 @@
+{
+  "name": "aetheris-workspace",
+  "displayName": "AetherisUI Workspace",
+  "description": "Connect your local VS Code workspace to the AetherisUI platform — read-only context, AI-powered proposals.",
+  "version": "0.1.0",
+  "publisher": "aetherisui",
+  "license": "MIT",
+  "preview": true,
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Other", "AI"],
+  "keywords": ["ai", "workspace", "context", "aetheris", "agents"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aetheris.signIn",
+        "title": "AetherisUI: Sign In",
+        "category": "AetherisUI"
+      },
+      {
+        "command": "aetheris.signOut",
+        "title": "AetherisUI: Sign Out",
+        "category": "AetherisUI"
+      },
+      {
+        "command": "aetheris.connectWorkspace",
+        "title": "AetherisUI: Connect Workspace",
+        "category": "AetherisUI"
+      },
+      {
+        "command": "aetheris.disconnectWorkspace",
+        "title": "AetherisUI: Disconnect Workspace",
+        "category": "AetherisUI"
+      },
+      {
+        "command": "aetheris.syncWorkspace",
+        "title": "AetherisUI: Sync Workspace Context",
+        "category": "AetherisUI"
+      },
+      {
+        "command": "aetheris.showStatus",
+        "title": "AetherisUI: Show Connection Status",
+        "category": "AetherisUI"
+      },
+      {
+        "command": "aetheris.openWebApp",
+        "title": "AetherisUI: Open Web Application",
+        "category": "AetherisUI"
+      },
+      {
+        "command": "aetheris.showExcludedFiles",
+        "title": "AetherisUI: View Excluded Files",
+        "category": "AetherisUI"
+      },
+      {
+        "command": "aetheris.clearCache",
+        "title": "AetherisUI: Clear Cached Context",
+        "category": "AetherisUI"
+      },
+      {
+        "command": "aetheris.revokeSession",
+        "title": "AetherisUI: Revoke Session",
+        "category": "AetherisUI"
+      },
+      {
+        "command": "aetheris.showLogs",
+        "title": "AetherisUI: Show Extension Logs",
+        "category": "AetherisUI"
+      }
+    ],
+    "configuration": {
+      "title": "AetherisUI",
+      "properties": {
+        "aetheris.serverUrl": {
+          "type": "string",
+          "default": "https://aetherisui.app",
+          "description": "AetherisUI server URL.",
+          "scope": "application"
+        },
+        "aetheris.autoSync": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically sync workspace context when files change.",
+          "scope": "window"
+        },
+        "aetheris.syncDebounceMs": {
+          "type": "number",
+          "default": 3000,
+          "description": "Debounce delay in ms before syncing after a file change.",
+          "scope": "window"
+        },
+        "aetheris.includeGitMetadata": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include current branch and commit hash in context.",
+          "scope": "window"
+        },
+        "aetheris.includeActiveFile": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include the content of the currently active editor file.",
+          "scope": "window"
+        },
+        "aetheris.includeOpenEditors": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include paths of all currently open editor files.",
+          "scope": "window"
+        },
+        "aetheris.maxFileSizeKb": {
+          "type": "number",
+          "default": 256,
+          "description": "Maximum individual file size (KB) to include in context.",
+          "scope": "window"
+        },
+        "aetheris.maxContextSizeKb": {
+          "type": "number",
+          "default": 512,
+          "description": "Maximum total context payload size (KB).",
+          "scope": "window"
+        },
+        "aetheris.additionalExcludes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Additional glob patterns to exclude from context.",
+          "scope": "window"
+        },
+        "aetheris.logLevel": {
+          "type": "string",
+          "enum": ["off", "error", "warn", "info", "debug"],
+          "default": "info",
+          "description": "Extension log verbosity.",
+          "scope": "application"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc --noEmit",
+    "bundle": "node esbuild.mjs",
+    "package": "vsce package --no-dependencies",
+    "lint": "eslint src --ext .ts",
+    "test": "node ./dist/test/runTests.js",
+    "prepackage": "npm run bundle"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "@vscode/test-electron": "^2.3.0",
+    "@vscode/vsce": "^2.24.0",
+    "esbuild": "^0.21.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {}
+}

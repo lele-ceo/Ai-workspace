@@ -6,6 +6,7 @@ import { useApp } from "@/hooks/use-app";
 import { useHydrated } from "@/hooks/use-hydrated";
 import type { Thread } from "@/types/thread.types";
 import { cn, dateBucket, relativeTime, type DateBucket } from "@/lib/utils";
+import { GitHubConnection } from "@/components/layout/github-connection";
 
 const BUCKET_ORDER: DateBucket[] = ["Today", "Yesterday", "Earlier"];
 
@@ -111,6 +112,7 @@ export function Sidebar({ onClose }: SidebarProps) {
       </nav>
 
       <div className="border-t border-[var(--border)] p-2">
+        <GitHubConnection />
         <Link href="/profile" className="flex items-center gap-2 rounded-lg px-2 py-2 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"><UserRound className="size-3.5" /> Profile</Link>
         <Link href="/settings" className="flex items-center gap-2 rounded-lg px-2 py-2 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"><Settings className="size-3.5" /> Settings</Link>
       </div>

@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The VS Code extension is an independently compiled package with its own
+    // TypeScript and lint configuration.
+    "vscode-extension/**",
   ]),
 ]);
 

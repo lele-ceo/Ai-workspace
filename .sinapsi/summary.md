@@ -7,9 +7,10 @@
 
 <!-- sinapsi:start v0.2.6 — kept current automatically by Sinapsi — refreshed on every build and by the watcher whenever files or folders are created, moved or deleted. No command to run; edits between these markers are replaced -->
 ```
+db/
+  migrations/
 docs/
-  handoff.md
-  session.md
+  persistence-architecture.md
 src/
   app/
   components/
@@ -17,11 +18,21 @@ src/
   lib/
   store/
   types/
+  .DS_Store
+vscode-extension/
+  src/
+  .vscodeignore
+  esbuild.mjs
+  package.json
+  tsconfig.json
 .DS_Store
 .env.example
 .gitignore
 .mcp.json
+AETHERIS_UI_ARCHITECTURE.md
 AGENTS.md
+AI_WORKSPACE_BRIEF.md
+Dockerfile
 Makefile
 README.md
 bun.lock
@@ -40,6 +51,12 @@ patch: the project's shape (above), the last sessions at a glance, and a short r
 
 ## Recent sessions
 
+- 2026-07-24 — Phase 4 persistence foundation: tenant schema and conversation API
+- 2026-07-24 — Phase 3 VS Code Extension backend API complete (revoke, heartbeat, context upload/delta/delete, workspace status, DB migration, WorkspaceIndicator UI)
+- 2026-07-24 — Restored clean lint, test and production-build validation
+- 2026-07-23 — AetherisUI agentic component library (Phases 1–3): types, task router, execution simulator, hooks, layout components, micro-UI
+- 2026-07-23 — Supabase + GitHub OAuth authentication (Phase 2 of RFC 001)
+- 2026-07-23 — Switch GitHub persistence foundation to Supabase
 - 2026-07-23 — GitHub App and Neon persistence foundation added
 - 2026-07-23 — Local Profile and Settings pages restored with simple persisted controls
 - 2026-07-23 — RFC for GitHub App, VS Code local companion and approved terminal execution
@@ -49,8 +66,6 @@ patch: the project's shape (above), the last sessions at a glance, and a short r
 - 2026-07-23 — Production chat backend, AgentGuard hard budget block, Docker deploy setup
 - 2026-07-21 — Grok provider and variants removed from the model UI
 - 2026-07-21 — AgentGuard (AHRPLY) transparent LLM budget proxy integrated
-- 2026-07-04 — Tool Picker: emoji icons → lucide icons
-- 2026-07-04 — Tool Picker Menu (composer "+" dropdown)
 - 2026-07-04 — Responsive model selector (top bar on mobile) + token counter removed
 - 2026-07-04 — Casual/everyday conversation dataset (9 new macro-topics, +114 templates)
 - 2026-07-03 — Intent-aware response routing (data-driven selection engine)
@@ -61,25 +76,12 @@ patch: the project's shape (above), the last sessions at a glance, and a short r
 
 ## Where things stand
 
-Dark-theme AI assistant console with local mock mode and a deployable Anthropic
-streaming backend. AgentGuard is mandatory for all live calls: the API no
-longer has a direct-provider fallback that could bypass its budget gate.
-The UI locks new sends after `budget_exceeded`; AgentGuard remains the durable
-server-side hard block. Only Claude is live-enabled; other provider cards are
-deliberately mock-only until their real adapters exist.
-`/api/health`, standalone Next output, Docker packaging, and deployment
-environment documentation are in place. Attachments remain local previews,
-not model input. Build, lint, and tests are green (25 pass); AgentGuard
-integration checks still need credentials and a reachable proxy to run live.
-`AI_WORKSPACE_BRIEF.md` is the project-aligned brief for future enterprise UI
-work; it prohibits duplicating the app or bypassing the live budget boundary.
-The model picker now offers deterministic task-aware recommendations with a
-confidence score, manual override, and locally persisted routing preferences.
-Mock mode now includes a clearly labelled local spending cap and warning/block
-controls; real spend and enforcement remain AgentGuard-only in live mode.
-RFC 001 specifies the required GitHub App plus VS Code extension architecture;
-direct browser-to-terminal control is intentionally out of scope for security.
-The sidebar now links to Profile and Settings pages for local profile data,
-routing preferences and mock spending controls; no secrets are stored there.
- GitHub App configuration is validated server-side and a Supabase migration is ready;
-OAuth callback and repository selection remain the next patch.
+Dark-theme AI assistant console with mock mode and deployable Anthropic backend;
+AgentGuard is mandatory for live calls. Phase 4 now includes RFC 002, an
+architecture report, migration 003's tenant-rooted persistence/ledger/MCP
+control-plane schema, and authenticated `GET`/`POST /api/conversations`.
+The chat client is still mock-backed and migration 003 has not been applied,
+so cross-device history, artifacts, server-side costs and real MCP are not
+verified. Phase 3 VS Code backend is source-complete but extension packaging
+and Supabase migrations remain outstanding. `bun run lint` and `bun test`
+(32 pass) are green.
