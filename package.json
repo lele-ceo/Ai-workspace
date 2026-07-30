@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "agentguard:health": "curl -sf http://localhost:3939/health && echo '✓ AgentGuard healthy'",
     "agentguard:register": "curl -s -X POST http://localhost:3939/api/activate -H 'Content-Type: application/json' -d '{\"provider\":\"anthropic\",\"api_key\":\"'\"$ANTHROPIC_API_KEY\"'\",\"monthly_budget_usd\":50}'"
   },
@@ -27,6 +28,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "bun-types": "latest",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",

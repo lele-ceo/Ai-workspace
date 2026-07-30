@@ -1,8 +1,19 @@
 # Agent Workspace
 
+[![CI](https://github.com/lele-ceo/Ai-workspace/actions/workflows/ci.yml/badge.svg)](https://github.com/lele-ceo/Ai-workspace/actions/workflows/ci.yml)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 A streaming AI assistant console built with Next.js. It supports a local mock
 mode for UI development and a production Anthropic route protected by
 AgentGuard (AHRPLY), which is the mandatory server-side budget gate.
+
+**Design stance:** the live backend has *no* direct-provider fallback. Every request
+carries AgentGuard credentials or it does not go out. A provider that is not wired
+rejects explicitly rather than silently routing to another vendor, and
+`GET /api/health` returns `200` only when every credential is present — it never
+echoes a secret value.
 
 ## Run locally
 

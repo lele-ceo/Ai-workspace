@@ -1,18 +1,24 @@
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages";
+import type { ProviderTab } from "@/types/model.types";
+import type { EnvSource } from "@/lib/env";
 
 export const MAX_CHAT_MESSAGES = 50;
 export const MAX_MESSAGE_CHARS = 40_000;
 export const MAX_CHAT_CHARS = 120_000;
 
-const MODEL_BY_PROVIDER = {
+/** Default model ID for each provider tab. */
+export const PROVIDER_MODELS: Record<ProviderTab, string> = {
+  base: "claude-sonnet-4-5-20250929",
   claude: "claude-sonnet-4-5-20250929",
-  anthropic: "claude-sonnet-4-5-20250929",
-} as const;
+  chatgpt: "gpt-4o",
+  gemini: "gemini-2.0-flash",
+  perplexity: "llama-3.1-sonar-small-128k-online",
+};
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
 export interface ValidChatRequest {
   messages: ChatMessage[];
+  provider: ProviderTab;
   model: string;
 }
 
@@ -30,8 +36,13 @@ export function validateChatRequest(body: unknown): ChatRequestValidation {
   if (messages.length > MAX_CHAT_MESSAGES) {
     return { ok: false, error: `messages cannot contain more than ${MAX_CHAT_MESSAGES} items.` };
   }
-  if (typeof model !== "string" || !(model.toLowerCase() in MODEL_BY_PROVIDER)) {
-    return { ok: false, error: "Only the Claude provider is available in live mode." };
+
+  const provider = (typeof model === "string" ? model.toLowerCase() : "") as ProviderTab;
+  if (!(provider in PROVIDER_MODELS)) {
+    return {
+      ok: false,
+      error: `Unknown provider: "${model}". Valid providers: ${Object.keys(PROVIDER_MODELS).join(", ")}.`,
+    };
   }
 
   let totalChars = 0;
@@ -55,15 +66,12 @@ export function validateChatRequest(body: unknown): ChatRequestValidation {
     validMessages.push({ role, content });
   }
 
-  return { ok: true, value: { messages: validMessages, model } };
+  return { ok: true, value: { messages: validMessages, provider, model: PROVIDER_MODELS[provider] } };
 }
 
-export function resolveModel(model: string): string {
-  return MODEL_BY_PROVIDER[model.toLowerCase() as keyof typeof MODEL_BY_PROVIDER];
-}
-
-export function toAnthropicMessages(messages: ChatMessage[]): MessageParam[] {
-  return messages;
+/** Resolve a provider tab to its canonical model ID. */
+export function resolveModel(provider: string): string {
+  return PROVIDER_MODELS[provider.toLowerCase() as ProviderTab] ?? "";
 }
 
 export interface AgentGuardConfig {
@@ -73,7 +81,7 @@ export interface AgentGuardConfig {
   proxyKey: string;
 }
 
-export function getAgentGuardConfig(env: NodeJS.ProcessEnv = process.env): AgentGuardConfig | null {
+export function getAgentGuardConfig(env: EnvSource = process.env): AgentGuardConfig | null {
   const apiKey = env.ANTHROPIC_API_KEY?.trim();
   const baseURL = env.AGENTGUARD_URL?.trim();
   const agentId = env.AGENTGUARD_AGENT_ID?.trim();

@@ -1,3 +1,5 @@
+import type { EnvSource } from "@/lib/env";
+
 export interface GitHubConfig {
   appId: string;
   clientId: string;
@@ -8,7 +10,7 @@ export interface GitHubConfig {
   supabaseServiceRoleKey: string;
 }
 
-export function getGitHubConfig(env: NodeJS.ProcessEnv = process.env): GitHubConfig | null {
+export function getGitHubConfig(env: EnvSource = process.env): GitHubConfig | null {
   const appId = env.GITHUB_APP_ID?.trim();
   const clientId = env.GITHUB_CLIENT_ID?.trim();
   const clientSecret = env.GITHUB_CLIENT_SECRET?.trim();
