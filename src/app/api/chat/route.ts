@@ -1,11 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest } from "next/server";
-import {
-  getAgentGuardConfig,
-  resolveModel,
-  toAnthropicMessages,
-  validateChatRequest,
-} from "@/lib/ai/chat-contract";
+import { validateChatRequest } from "@/lib/ai/chat-contract";
+import { getBackend } from "@/lib/ai/backends/registry";
+import { BackendBudgetError } from "@/lib/ai/backend.interface";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,53 +21,34 @@ export async function POST(req: NextRequest) {
   const validation = validateChatRequest(body);
   if (!validation.ok) return errorResponse("invalid_request", validation.error, 400);
 
-  // A live request must always cross AgentGuard. There is deliberately no
-  // direct-Anthropic fallback: that would bypass the server-side budget gate.
-  const config = getAgentGuardConfig();
-  if (!config) {
+  const { provider, model, messages } = validation.value;
+
+  const backend = getBackend(provider);
+  if (!backend) {
+    return errorResponse("configuration_error", `Provider "${provider}" is not supported.`, 503);
+  }
+  if (!backend.isConfigured(process.env)) {
     return errorResponse(
       "configuration_error",
-      "Live AI is unavailable until AgentGuard credentials are configured.",
+      `Provider "${provider}" credentials are not configured on this server.`,
       503,
     );
   }
 
-  const anthropic = new Anthropic({
-    apiKey: config.apiKey,
-    baseURL: config.baseURL,
-    defaultHeaders: {
-      "X-Ahrply-Agent-ID": config.agentId,
-      "X-Ahrply-Proxy-Key": config.proxyKey,
-    },
-  });
-
-  let stream: AsyncIterable<Anthropic.MessageStreamEvent>;
-  try {
-    stream = await anthropic.messages.stream(
-      {
-        model: resolveModel(validation.value.model),
-        max_tokens: 1024,
-        messages: toAnthropicMessages(validation.value.messages),
-      },
-      { signal: req.signal },
-    );
-  } catch (err) {
-    return handleUpstreamError(err);
-  }
+  const stream = backend.stream({ model, messages, signal: req.signal }, process.env);
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
     async start(controller) {
       try {
-        for await (const event of stream) {
-          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-            controller.enqueue(sse(encoder, { type: "text_delta", content: event.delta.text }));
-          } else if (event.type === "message_stop") {
-            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        for await (const chunk of stream) {
+          if (chunk.type === "text_delta") {
+            controller.enqueue(sse(encoder, chunk));
           }
         }
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
       } catch (err) {
-        controller.enqueue(sse(encoder, formatError(err)));
+        controller.enqueue(sse(encoder, formatStreamError(err)));
       } finally {
         controller.close();
       }
@@ -96,26 +73,17 @@ function errorResponse(type: string, message: string, status: number): Response 
   return Response.json({ error: { type, message } satisfies ApiError["error"] }, { status });
 }
 
-function formatError(err: unknown): ApiError {
-  if (err instanceof Anthropic.APIError) {
-    const body = err.error as Record<string, unknown> | undefined;
-    const inner = body?.error as Record<string, unknown> | undefined;
+function formatStreamError(err: unknown): ApiError {
+  if (err instanceof BackendBudgetError) {
     return {
       error: {
-        type: (inner?.type as string) ?? "api_error",
-        message: (inner?.message as string) ?? err.message,
-        ...(typeof inner?.spent_usd === "number" ? { spent_usd: inner.spent_usd } : {}),
-        ...(typeof inner?.budget_usd === "number" ? { budget_usd: inner.budget_usd } : {}),
+        type: "budget_exceeded",
+        message: err.message,
+        ...(err.spent_usd !== undefined ? { spent_usd: err.spent_usd } : {}),
+        ...(err.budget_usd !== undefined ? { budget_usd: err.budget_usd } : {}),
       },
     };
   }
-  return { error: { type: "upstream_error", message: "The AI provider could not complete the request." } };
-}
-
-function handleUpstreamError(err: unknown): Response {
-  const formatted = formatError(err);
-  if (err instanceof Anthropic.APIError) {
-    return Response.json(formatted, { status: err.status === 429 ? 429 : err.status ?? 502 });
-  }
-  return Response.json(formatted, { status: 502 });
+  const message = err instanceof Error ? err.message : "The AI provider could not complete the request.";
+  return { error: { type: "upstream_error", message } };
 }
